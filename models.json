@@ -1,0 +1,30 @@
+{
+  "_comment": "Model list for the PreFlight Observe node. Keys beginning with '_' are metadata and are ignored by the loader (they are not selectable models). Each entry maps a display name to a Hugging Face repo_id, a default flag (the model pre-selected in the combo), a 'quantized' flag (true only for repos that are ALREADY quantized on disk, e.g. FP8 — the loader forces sdpa and skips bitsandbytes for those), and rough VRAM requirements in GB per precision. Only Instruct variants are listed: 'Thinking' variants emit reasoning text that breaks strict JSON output. Models are downloaded once into ComfyUI/models/LLM/Qwen-VL/<name> and reused across Qwen-VL packs. Add a model by copying an entry; no code change needed. Re-read on every node execution.",
+  "_schema": {
+    "repo_id": "string, Hugging Face repo id passed to snapshot_download",
+    "default": "bool, optional; the model pre-selected in the node (first one wins)",
+    "quantized": "bool, true if the repo ships pre-quantized weights (forces sdpa, no bitsandbytes)",
+    "vram_requirement": "object {full, 8bit, 4bit} approximate GB of VRAM per precision"
+  },
+
+  "Qwen3-VL-8B-Instruct": {
+    "repo_id": "Qwen/Qwen3-VL-8B-Instruct",
+    "default": true,
+    "quantized": false,
+    "vram_requirement": { "full": 12.0, "8bit": 7.0, "4bit": 4.5 }
+  },
+
+  "Qwen3-VL-4B-Instruct": {
+    "repo_id": "Qwen/Qwen3-VL-4B-Instruct",
+    "default": false,
+    "quantized": false,
+    "vram_requirement": { "full": 6.0, "8bit": 3.5, "4bit": 2.0 }
+  },
+
+  "Qwen3-VL-2B-Instruct": {
+    "repo_id": "Qwen/Qwen3-VL-2B-Instruct",
+    "default": false,
+    "quantized": false,
+    "vram_requirement": { "full": 4.0, "8bit": 2.5, "4bit": 1.5 }
+  }
+}

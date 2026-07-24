@@ -1,0 +1,28 @@
+{
+  "id": "7a2b3c4d-5e6f-7081-9bac-preflightoutc",
+  "revision": 0,
+  "last_node_id": 1,
+  "last_link_id": 0,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "PreFlightOutcome",
+      "pos": [300, 220],
+      "size": [380, 200],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {"name": "status", "type": "STRING", "links": null}
+      ],
+      "properties": {"Node name for S&R": "PreFlightOutcome"},
+      "widgets_values": ["no records yet", "instagram", "clean", ""]
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

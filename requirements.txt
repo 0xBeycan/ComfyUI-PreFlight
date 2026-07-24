@@ -1,0 +1,8 @@
+# torch is intentionally NOT listed — it is provided by the ComfyUI runtime and
+# pinning it here risks conflicting with ComfyUI's own build.
+transformers>=4.57.0
+accelerate>=0.30.0
+bitsandbytes>=0.43.0
+huggingface_hub>=0.24.0
+pillow>=9.5.0
+numpy>=1.24.0

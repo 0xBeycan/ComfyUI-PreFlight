@@ -1,0 +1,41 @@
+[project]
+name = "comfyui-preflight"
+description = "Predict how a generated image/video would be treated by Instagram, TikTok and X before publishing — a Qwen-VL observation sensor plus a deterministic rules engine that flags removal and reach-suppression risk per platform."
+version = "1.0.0"
+authors = [{ name = "0xBeycan" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+
+# torch and numpy come from the ComfyUI runtime and are intentionally not pinned
+# here (pinning would risk conflicting with ComfyUI's own versions). numpy is
+# also listed in requirements.txt for standalone installs.
+dependencies = [
+    "transformers>=4.57.0",
+    "accelerate>=0.30.0",
+    "bitsandbytes>=0.43.0",
+    "huggingface_hub>=0.24.0",
+    "Pillow>=9.5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/0xBeycan/ComfyUI-PreFlight"
+Repository = "https://github.com/0xBeycan/ComfyUI-PreFlight"
+"Bug Tracker" = "https://github.com/0xBeycan/ComfyUI-PreFlight/issues"
+
+# ComfyUI Registry metadata (https://docs.comfy.org/registry/overview).
+[tool.comfy]
+PublisherId = "0xbeycan"
+DisplayName = "ComfyUI-PreFlight"
+Icon = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# rules.py / feedback.py / calibrate.py are pure stdlib and the node modules
+# defer their torch/transformers imports, so the whole package imports during
+# collection with only numpy + Pillow present. pythonpath lets tests
+# `import rules` etc. directly.
+pythonpath = ["."]
