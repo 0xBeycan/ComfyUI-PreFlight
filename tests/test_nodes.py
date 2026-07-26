@@ -75,7 +75,8 @@ def test_observe_valid_first_try_single_call():
     assert calls == [""]                                 # exactly one call, no retry
     assert "error" not in obs
     assert obs["garment"] == "bikini"
-    assert obs["meta"] == {"schema_version": "1", "prompt_version": "1",
+    assert obs["meta"] == {"schema_version": nodes.prompts.SCHEMA_VERSION,
+                           "prompt_version": nodes.prompts.PROMPT_VERSION,
                            "model_name": "Qwen3-VL-8B-Instruct", "frames_analyzed": 6}
 
 

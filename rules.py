@@ -20,7 +20,7 @@ uses to attribute real-world outcomes to individual rules.
 
 import re
 
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 
 # Observation schema versions this engine knows how to interpret. Stage 0 fails
 # closed on anything else, so an observation produced by a newer/older schema is
@@ -69,6 +69,13 @@ _FLAG_PATTERNS = [
         r"subscribe|sub\s*for|ppv|exclusive\s*content)")),
     ("age_marker", re.compile(r"(?i)(18\s*\+|\bnsfw\b|\bspicy\s+(content|pics?|vids?|link)\b)")),
     ("adult_link", re.compile(r"(?i)(fanvue\.com|onlyfans\.com|fansly\.com)")),
+    # Overt sexual wording in the caption or burned into the image. A demotion
+    # signal (not solicitation): platforms down-rank / age-gate sexually explicit
+    # text overlays even over clothed visuals.
+    ("sexual_text", re.compile(
+        r"(?i)(\bsex\b|\bsexting\b|\bnudes?\b|\bnaked\b|\bporn\b|\bxxx\b|"
+        r"\bhookup\b|\bhorny\b|\bcum\b|blow\s?job|hand\s?job|\banal\b|"
+        r"\bdeepthroat\b|\bthirst\s*trap\b)")),
 ]
 
 
@@ -120,6 +127,17 @@ def _merge(v, best, worst, reason=None):
 
 def _bump_worst(v, n=1):
     v["worst"] = _clamp(v["worst"] + n)
+
+
+def _bump_worst_capped(v, cap=RISK):
+    """Raise ``worst`` by one, but never above ``cap`` via this bump alone.
+
+    Used by soft signals (framing, mild pose, suggestive text): they can push a
+    verdict up to RISK (reach demotion) but must NOT by themselves manufacture a
+    BLOCK (removal) — that is reserved for genuine policy violations. A verdict
+    already at BLOCK from a base rule keeps it (max), it is never lowered.
+    """
+    v["worst"] = max(v["worst"], min(cap, v["worst"] + 1))
 
 
 def _raise_best(v, floor):
@@ -176,10 +194,14 @@ def _apply_base_rules(V, obs, fired):
         _merge(tt, RISK, BLOCK, "moderate exposure is restricted in some regions")
         _merge(x, RISK, RISK, "moderate exposure — adult label recommended")
 
-    if exposure == "mild" or garment in _MILD_GARMENTS:
+    if garment in _MILD_GARMENTS:
+        # Only *revealing casualwear* (croptop/miniskirt/shorts/fitness_wear) is a
+        # demotion signal. Plain "mild" exposure (bare arms/legs, ordinary
+        # cleavage) on a normal garment is not risky and no longer fires here —
+        # that used to flag every everyday photo as RISK.
         matched.append("base.exposure_mild")
-        _merge(ig, OK, RISK, "mild exposure / revealing casualwear")
-        _merge(tt, OK, RISK, "mild exposure / revealing casualwear")
+        _merge(ig, OK, RISK, "revealing casualwear — mild demotion possible")
+        _merge(tt, OK, RISK, "revealing casualwear — mild demotion possible")
         _merge(x, OK, OK)
 
     if not matched:
@@ -197,41 +219,50 @@ def _apply_modifiers(V, obs, flags, motion, fired):
 
     if obs.get("framing") in _FRAMING_SEXUALIZED:
         fired.append("mod.framing")
-        _bump_worst(ig)
-        _bump_worst(tt)
-        note = "sexualized framing (demoted even with ordinary clothing)"
+        _bump_worst_capped(ig)
+        _bump_worst_capped(tt)
+        note = "sexualized framing (demotes reach even with ordinary clothing)"
         _add_reason(ig, note)
         _add_reason(tt, note)
 
     pose = obs.get("pose", "neutral")
     if pose == "suggestive":
         fired.append("mod.pose_suggestive")
-        _bump_worst(ig)
-        _bump_worst(tt)
+        _bump_worst_capped(ig)
+        _bump_worst_capped(tt)
         _raise_best(ig, RISK)
         _add_reason(ig, "IG demotes suggestive poses directly")
         _add_reason(tt, "suggestive pose")
     elif pose == "mildly_suggestive":
         fired.append("mod.pose_mild")
-        _bump_worst(tt)
+        _bump_worst_capped(tt)
         _add_reason(tt, "mildly suggestive pose")
 
     if motion == "twerk_grind_striptease":
         fired.append("mod.motion_twerk")
-        # Floor (max-merge, not assignment) so an already-worse verdict is kept.
+        # Explicit sexual motion IS a genuine violation -> floor at BLOCK
+        # (max-merge, not assignment) so an already-worse verdict is kept.
         _merge(ig, BLOCK, BLOCK, "twerk/grind/striptease motion")
         _merge(tt, BLOCK, BLOCK, "twerk/grind/striptease motion — age-restricted")
         _merge(V["x"], RISK, RISK, "sexualized motion — adult label recommended")
     elif motion == "intimate_kissing":
         fired.append("mod.motion_kiss")
-        _bump_worst(tt)
+        _bump_worst_capped(tt)
         _add_reason(tt, "intimate kissing")
 
     if "age_marker" in flags or "flagged_emoji" in flags:
         fired.append("mod.text_age")
-        _bump_worst(ig)
-        _bump_worst(tt)
+        _bump_worst_capped(ig)
+        _bump_worst_capped(tt)
         note = "adult/age-coded text or emoji in caption or image"
+        _add_reason(ig, note)
+        _add_reason(tt, note)
+
+    if "sexual_text" in flags:
+        fired.append("mod.sexual_text")
+        _bump_worst_capped(ig)
+        _bump_worst_capped(tt)
+        note = "sexually explicit text in caption or image overlay"
         _add_reason(ig, note)
         _add_reason(tt, note)
 
@@ -289,6 +320,30 @@ def _apply_confidence(V, obs, fired):
 # Stage 6 — X label requirement
 # ---------------------------------------------------------------------------
 
+def _has_suggestive_signal(obs, flags, motion):
+    """Any signal that turns an apparent-minor depiction into a platform
+    violation. A clothed, neutral apparent minor has NONE of these and is
+    ordinary content — it must not be blocked. Everyday youth clothing (a plain
+    croptop/shorts, full-body, neutral) is deliberately NOT enough on its own;
+    it takes real exposure, a swim/intimate garment, a suggestive pose/framing,
+    sexual motion, or sexual/adult text.
+    """
+    if obs.get("exposure") in ("moderate", "significant"):
+        return True
+    if obs.get("see_through_or_wet") is True or obs.get("nudity_or_sexual_act") is True:
+        return True
+    if obs.get("pose") in ("mildly_suggestive", "suggestive"):
+        return True
+    if obs.get("garment") in ({"bikini", "swimsuit_onepiece"} | _MINIMAL_GARMENTS):
+        return True
+    if obs.get("framing") in _FRAMING_SEXUALIZED:
+        return True
+    if motion != "none":
+        return True
+    return any(f in flags for f in ("sexual_text", "age_marker", "adult_platform_mention",
+                                    "price_or_subscription_cta", "adult_link", "flagged_emoji"))
+
+
 def _apply_x_label(V, obs, motion):
     exposure = obs.get("exposure", "none")
     required = (
@@ -309,8 +364,9 @@ def _apply_x_label(V, obs, motion):
 # range_drivers — human-readable explanations of what the range hinges on
 # ---------------------------------------------------------------------------
 
-def _range_drivers(obs, fired, widened_low_conf):
+def _range_drivers(obs, fired, widened_low_conf, V):
     drivers = []
+    explained = set()
     if "base.bikini" in fired:
         setting = obs.get("setting", "indoor_other")
         if setting == "beach_pool":
@@ -325,14 +381,27 @@ def _range_drivers(obs, fired, widened_low_conf):
             drivers.append(
                 "TikTok: bikini reported in '%s' — verdict spans RISK (beach/pool) to "
                 "BLOCK (indoors); confirm the setting to collapse it." % setting)
+        explained.add("tiktok")
     if "base.exposure_mod" in fired:
         drivers.append(
             "TikTok: moderate exposure (sideboob/underboob/partial buttock) is "
             "region-restricted — RISK in most regions, BLOCK where enforcement is stricter.")
+        explained.add("tiktok")
     if widened_low_conf:
         drivers.append(
             "All non-final verdicts were widened because the sensor reported LOW "
             "confidence — a clearer, less-occluded image would tighten these ranges.")
+        explained.update(PLATFORMS)
+    # Generic fallback: never leave a best!=worst spread unexplained, so the user
+    # always knows what the range means.
+    labels = {"instagram": "Instagram", "tiktok": "TikTok"}
+    spread = [labels[p] for p in ("instagram", "tiktok")
+              if p not in explained and V[p]["best"] < V[p]["worst"]]
+    if spread:
+        drivers.append(
+            "%s: the best-worst spread is soft demotion risk — the low end assumes a "
+            "clean account and neutral context, the high end an unlucky classifier "
+            "pass. It means possible reach loss, not removal." % "/".join(spread))
     return drivers
 
 
@@ -421,12 +490,24 @@ def judge(observations, caption_text="", is_video=False):
             "disclaimer": DISCLAIMER,
         }
 
-    # --- Stage 1: global minor override --------------------------------------
-    if observations.get("subject_appears_under_18") is True:
+    # motion flags only count for genuine multi-frame (video) input; guard a
+    # stray flag on a single still. Computed before Stage 1 so the minor gate
+    # can consider sexual motion.
+    motion = observations.get("motion_flags", "none") if is_video else "none"
+
+    # --- Stage 1: apparent-minor override, GATED on a suggestive signal ------
+    # A clothed, neutral depiction of an apparent minor is ordinary content and
+    # is NOT blocked — platforms allow minors to appear fully clothed. Only a
+    # *sexualized* depiction is a removal-and-report risk. This replaces the old
+    # unconditional block-everything, which nuked every youthful-looking adult
+    # (the tool's entire audience is adult creators).
+    if (observations.get("subject_appears_under_18") is True
+            and _has_suggestive_signal(observations, flags, motion)):
         verdicts = {}
         for name in PLATFORMS:
             verdicts[name] = {"best": "BLOCK", "worst": "BLOCK", "hard": True,
-                              "reasons": ["possible minor"]}
+                              "reasons": ["sexualized depiction of an apparent minor "
+                                          "— removal and report risk"]}
         verdicts["x"]["label_required"] = False
         return {
             "engine_version": ENGINE_VERSION,
@@ -439,10 +520,6 @@ def judge(observations, caption_text="", is_video=False):
             "unknown": False,
             "disclaimer": DISCLAIMER,
         }
-
-    # motion flags only count for genuine multi-frame (video) input; guard a
-    # stray flag on a single still.
-    motion = observations.get("motion_flags", "none") if is_video else "none"
 
     V = {name: _new_verdict() for name in PLATFORMS}
     fired = []
@@ -467,7 +544,7 @@ def judge(observations, caption_text="", is_video=False):
 
     _apply_x_label(V, observations, motion)
 
-    drivers = _range_drivers(observations, fired, widened)
+    drivers = _range_drivers(observations, fired, widened, V)
     return _build_report(observations, flags, fired, V, drivers, unknown=False)
 
 

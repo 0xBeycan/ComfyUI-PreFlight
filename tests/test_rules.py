@@ -49,7 +49,7 @@ def test_bikini_beach():
     assert V(r, "tiktok") == ("RISK", "RISK")       # beach/pool collapses TT to RISK
     assert V(r, "x") == ("OK", "RISK")
     assert r["verdicts"]["x"]["label_required"] is False
-    assert r["fired_rules"] == ["base.bikini", "base.exposure_mild"]
+    assert r["fired_rules"] == ["base.bikini"]   # mild exposure alone no longer fires
     assert not any(r["verdicts"][p]["hard"] for p in rules.PLATFORMS)
 
 
@@ -57,7 +57,7 @@ def test_bikini_bedroom_kills_tiktok():
     r = rules.judge(obs(garment="bikini", setting="bedroom", exposure="mild"))
     assert V(r, "instagram") == ("RISK", "RISK")
     assert V(r, "tiktok") == ("BLOCK", "BLOCK")     # indoors -> FYF ineligible
-    assert r["fired_rules"] == ["base.bikini", "base.exposure_mild"]
+    assert r["fired_rules"] == ["base.bikini"]
 
 
 def test_lingerie():
@@ -95,17 +95,43 @@ def test_clean_default():
     assert r["unknown"] is False
 
 
-# --- 2. global minor override -------------------------------------------------
+# --- 2. apparent-minor override (gated on a suggestive signal) ----------------
 
-def test_minor_override_blocks_all_and_stops():
+def test_sexualized_minor_blocks_all_and_stops():
+    # minor + bikini + moderate exposure = a suggestive signal -> hard block.
     r = rules.judge(obs(subject_appears_under_18=True, garment="bikini",
                         exposure="moderate", confidence="low"))
     for p in rules.PLATFORMS:
         assert V(r, p) == ("BLOCK", "BLOCK")
         assert r["verdicts"][p]["hard"] is True
-    assert "possible minor" in r["verdicts"]["instagram"]["reasons"]
+    assert any("apparent minor" in x for x in r["verdicts"]["instagram"]["reasons"])
     # Override skips every later stage — including confidence widening.
     assert r["fired_rules"] == ["override.minor"]
+
+
+def test_benign_apparent_minor_is_not_blocked():
+    # A clothed, neutral apparent minor is ordinary content — NOT a violation.
+    # This is the false-positive that made the tool unusable for adult creators.
+    r = rules.judge(obs(subject_appears_under_18=True, garment="regular",
+                        setting="outdoor", framing="face_centric", pose="neutral",
+                        exposure="none"))
+    for p in rules.PLATFORMS:
+        assert V(r, p) == ("OK", "OK")
+    assert r["fired_rules"] == ["base.default"]
+    assert "override.minor" not in r["fired_rules"]
+
+
+@pytest.mark.parametrize("kw", [
+    dict(exposure="moderate"),
+    dict(see_through_or_wet=True),
+    dict(pose="suggestive"),
+    dict(garment="lingerie"),
+    dict(framing="chest_focus"),
+])
+def test_minor_gate_fires_on_each_suggestive_signal(kw):
+    r = rules.judge(obs(subject_appears_under_18=True, **kw))
+    assert r["fired_rules"] == ["override.minor"]
+    assert V(r, "instagram") == ("BLOCK", "BLOCK")
 
 
 # --- 3. hard collapses --------------------------------------------------------
@@ -147,7 +173,7 @@ def test_low_confidence_widens_range():
                         confidence="low"))
     assert V(r, "instagram") == ("OK", "BLOCK")     # RISK/RISK widened both ways
     assert V(r, "tiktok") == ("OK", "BLOCK")
-    assert r["fired_rules"] == ["base.bikini", "base.exposure_mild", "mod.confidence_low"]
+    assert r["fired_rules"] == ["base.bikini", "mod.confidence_low"]
     assert any("range widened" in x for x in r["verdicts"]["instagram"]["reasons"])
 
 
@@ -223,6 +249,9 @@ def test_fired_rules_full_order():
     ("check my OnlyFans", ["adult_platform_mention"]),
     ("fansly.com/x", ["adult_platform_mention", "adult_link"]),
     ("hot 🍑", ["flagged_emoji"]),
+    ("MORNING SEX OR LATE-NIGHT SEX?", ["sexual_text"]),   # overt sexual overlay
+    ("nudes in bio", ["sexual_text"]),
+    ("sexy summer vibes", []),                             # "sexy" is not "sex"
     ("just a normal caption", []),
 ])
 def test_caption_flags_precision(text, expected):
@@ -243,6 +272,54 @@ def test_caption_flags_precision(text, expected):
 def test_x_label_required(kw, expected):
     r = rules.judge(obs(**kw))
     assert r["verdicts"]["x"]["label_required"] is expected
+
+
+# --- 8b. calibration fixes (v1.1.0): fewer false positives, tighter ranges ----
+
+def test_mild_exposure_on_ordinary_garment_is_ok():
+    # bare arms/legs/ordinary cleavage on a normal outfit is no longer a signal.
+    r = rules.judge(obs(garment="regular", exposure="mild"))
+    for p in rules.PLATFORMS:
+        assert V(r, p) == ("OK", "OK")
+    assert r["fired_rules"] == ["base.default"]
+
+
+def test_revealing_casualwear_is_risk_not_removal():
+    r = rules.judge(obs(garment="croptop", exposure="mild"))
+    assert V(r, "instagram") == ("OK", "RISK")
+    assert V(r, "tiktok") == ("OK", "RISK")
+    assert r["fired_rules"] == ["base.exposure_mild"]
+
+
+def test_soft_modifiers_never_reach_block():
+    # croptop (RISK) + sexualized framing must STAY RISK — a soft modifier must
+    # not manufacture a BLOCK (removal). This is the OK->BLOCK bug from the field.
+    r = rules.judge(obs(garment="croptop", exposure="mild", framing="chest_focus"))
+    assert V(r, "instagram") == ("OK", "RISK")
+    assert V(r, "tiktok") == ("OK", "RISK")
+    assert r["fired_rules"] == ["base.exposure_mild", "mod.framing"]
+
+
+def test_framing_on_ordinary_clothing_caps_at_risk():
+    r = rules.judge(obs(garment="regular", exposure="none", framing="butt_focus"))
+    assert V(r, "instagram") == ("OK", "RISK")
+    assert r["verdicts"]["instagram"]["worst"] != "BLOCK"
+    assert r["fired_rules"] == ["base.default", "mod.framing"]
+
+
+def test_sexual_text_overlay_flagged_and_capped():
+    r = rules.judge(obs(garment="croptop", framing="chest_focus", exposure="mild",
+                        visible_text="MORNING SEX OR LATE-NIGHT SEX?"))
+    assert "sexual_text" in r["caption_flags"]
+    assert V(r, "instagram") == ("OK", "RISK")          # demotion, not removal
+    assert "mod.sexual_text" in r["fired_rules"]
+
+
+def test_every_spread_has_a_range_driver():
+    # A best!=worst verdict must never be left unexplained.
+    r = rules.judge(obs(garment="croptop", exposure="mild"))
+    assert V(r, "instagram") == ("OK", "RISK")
+    assert r["range_drivers"], "OK/RISK spread must carry a range_driver"
 
 
 # --- 9. invariants ------------------------------------------------------------

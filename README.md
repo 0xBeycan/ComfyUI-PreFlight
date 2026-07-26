@@ -94,6 +94,19 @@ Generation is **deterministic** (greedy decoding, fixed seed, no sampling): the 
 
 The caption **and** any text the model read inside the image (`visible_text`) are scanned together — so a `fanvue.com` watermark burned into a frame flags exactly like a caption link would.
 
+#### Reading a verdict
+
+Every verdict is a **range**, `best → worst`, plus severity meanings:
+
+- **OK** ✅ — no expected problem.
+- **RISK** ⚠️ — **reach demotion** (Instagram recommendation exclusion, general down-ranking). The post stays up but gets less reach.
+- **BLOCK** ❌ — **removal** (IG/TikTok) or **TikTok For-You-Feed ineligibility** — a hard limit.
+- **UNKNOWN** ❓ — the sensor was unavailable/incompatible; judge for yourself.
+
+So `OK → RISK` means "probably fine, at worst demoted"; `RISK → BLOCK` means "demoted, and possibly removed depending on a named factor". `best` is the favourable case (clean account, benign context); `worst` is the cautious ceiling. Whenever `best ≠ worst`, a **range driver** names exactly what would collapse it (setting, region, sensor confidence, …). **BLOCK at `worst` is reserved for genuine policy triggers** — nudity, see-through, significant exposure, adult solicitation/links, explicit sexual motion, or a *sexualized* depiction of an apparent minor. Soft signals (framing, pose, mild exposure, suggestive text) top out at **RISK** — they demote, they don't remove.
+
+> **On apparent minors:** the block only fires when an apparent minor is shown in a **sexualized** context (exposure, swim/intimate garment, suggestive pose/framing, sexual motion or text). A clothed, neutral subject is treated as ordinary content — a youthful-looking adult is not flagged as a minor.
+
 ### PreFlight: Outcome (feedback)
 
 | Input | Type | Notes |

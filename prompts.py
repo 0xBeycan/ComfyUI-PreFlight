@@ -16,7 +16,7 @@ Pure stdlib — no ComfyUI, torch, or transformers imports — so the schema and
 # PROMPT_VERSION on any change to OBSERVATION_PROMPT wording. rules.py declares
 # which SCHEMA_VERSIONs it can still interpret (rules.KNOWN_SCHEMA_VERSIONS).
 SCHEMA_VERSION = "1"
-PROMPT_VERSION = "1"
+PROMPT_VERSION = "2"
 
 # The observation engine's system prompt. Kept verbatim; the model is a pure
 # "what is visually present" sensor and never judges acceptability.
@@ -42,7 +42,7 @@ Return ONLY a JSON object. No prose, no explanation, no markdown fences.
 }
 
 Field definitions:
-- subject_appears_under_18: true if the person could plausibly be perceived as under 18 (youthful face, teen-coded styling or context). Be strict — when uncertain, answer true.
+- subject_appears_under_18: true ONLY when there are concrete visual indicators the person is a minor — child or early-adolescent facial structure and body proportions, or an unmistakable school-age context. A youthful-looking adult is NOT a minor. If the person is plausibly an adult, answer false. Do not answer true merely because the face looks young or the styling is casual.
 - garment: the most revealing garment worn. "bikini" = two-piece swimwear. "lingerie" = intimate apparel not intended as swimwear. "underwear_only" = plain underwear with no outer layer.
 - setting: the physical environment. Use "studio" only for plain/seamless backdrops with no environmental cues.
 - framing: where the composition places emphasis. "chest_focus" / "butt_focus" = the frame is composed around that body region, regardless of how much clothing is worn. "lowangle_body" = camera below waist height angled up at the body.
@@ -95,15 +95,16 @@ REQUIRED_KEYS = frozenset(ENUMS) | frozenset(BOOL_KEYS) | frozenset(STRING_KEYS)
 # silently default to the permissive end":
 #   * Primary risk axes lean cautious: exposure->moderate, pose->mildly_suggestive,
 #     garment->croptop (mild-coverage tier), confidence->low (widens the range).
-#   * subject_appears_under_18 defaults True — the prompt's own strict-when-
-#     uncertain instruction, and the one axis where over-caution is clearly right.
 #   * Descriptive/modifier axes default neutral (framing->full_body, setting->
 #     indoor_other, motion_flags->none) so a single dropped field does not
 #     manufacture a bump; the primary axes above still carry the caution.
-#   * The BLOCK-forcing booleans (nudity, see_through) default False so an absent
-#     field never fabricates a platform-removal verdict out of thin air.
+#   * The high-stakes booleans (nudity, see_through, subject_appears_under_18)
+#     default False: a minor / nudity / see-through verdict must rest on a
+#     POSITIVE observation, not on a dropped field. Defaulting the age flag True
+#     used to nuke every observation with a parse hiccup to BLOCK; the minor rule
+#     now also requires a suggestive visual (see rules.py), so this is doubly safe.
 SAFE_DEFAULTS = {
-    "subject_appears_under_18": True,
+    "subject_appears_under_18": False,
     "garment": "croptop",
     "setting": "indoor_other",
     "framing": "full_body",
