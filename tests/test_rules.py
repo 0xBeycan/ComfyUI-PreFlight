@@ -301,23 +301,37 @@ def test_revealing_casualwear_with_pose_is_risk_not_removal():
 
 
 def test_soft_modifiers_never_reach_block():
-    # croptop (RISK) + sexualized framing must STAY RISK — a soft modifier must
-    # not manufacture a BLOCK (removal). This is the OK->BLOCK bug from the field.
-    r = rules.judge(obs(garment="croptop", exposure="mild", framing="chest_focus"))
+    # croptop + mild pose + sexualized framing must STAY RISK — soft modifiers
+    # must not manufacture a BLOCK (removal). This is the OK->BLOCK bug from the field.
+    r = rules.judge(obs(garment="croptop", exposure="mild", pose="mildly_suggestive",
+                        framing="chest_focus"))
     assert V(r, "instagram") == ("OK", "RISK")
     assert V(r, "tiktok") == ("OK", "RISK")
-    assert r["fired_rules"] == ["base.exposure_mild", "mod.framing"]
+    assert r["fired_rules"] == ["base.exposure_mild", "mod.framing", "mod.pose_mild"]
 
 
-def test_framing_on_ordinary_clothing_caps_at_risk():
+def test_framing_alone_on_clothed_neutral_subject_is_ok():
+    # The sensor reads an ordinary 3/4 portrait as chest_focus; two soft signals
+    # (croptop + framing) must not certify each other. This is the field case.
+    r = rules.judge(obs(garment="croptop", exposure="mild", framing="chest_focus"))
+    for p in rules.PLATFORMS:
+        assert V(r, p) == ("OK", "OK")
+    assert r["fired_rules"] == ["base.default"]
     r = rules.judge(obs(garment="regular", exposure="none", framing="butt_focus"))
-    assert V(r, "instagram") == ("OK", "RISK")
+    assert V(r, "instagram") == ("OK", "OK")
+    assert r["fired_rules"] == ["base.default"]
+
+
+def test_framing_counts_with_a_load_bearing_signal():
+    r = rules.judge(obs(garment="regular", exposure="moderate", framing="butt_focus"))
+    assert "mod.framing" in r["fired_rules"]
+    assert V(r, "instagram") == ("RISK", "RISK")
     assert r["verdicts"]["instagram"]["worst"] != "BLOCK"
-    assert r["fired_rules"] == ["base.default", "mod.framing"]
 
 
 def test_sexual_text_overlay_flagged_and_capped():
     r = rules.judge(obs(garment="croptop", framing="chest_focus", exposure="mild",
+                        pose="mildly_suggestive",
                         visible_text="MORNING SEX OR LATE-NIGHT SEX?"))
     assert "sexual_text" in r["caption_flags"]
     assert V(r, "instagram") == ("OK", "RISK")          # demotion, not removal
@@ -326,7 +340,7 @@ def test_sexual_text_overlay_flagged_and_capped():
 
 def test_every_spread_has_a_range_driver():
     # A best!=worst verdict must never be left unexplained.
-    r = rules.judge(obs(garment="croptop", exposure="mild", framing="chest_focus"))
+    r = rules.judge(obs(garment="croptop", exposure="mild", pose="mildly_suggestive"))
     assert V(r, "instagram") == ("OK", "RISK")
     assert r["range_drivers"], "OK/RISK spread must carry a range_driver"
 

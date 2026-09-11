@@ -20,7 +20,7 @@ uses to attribute real-world outcomes to individual rules.
 
 import re
 
-ENGINE_VERSION = "1.2.0"
+ENGINE_VERSION = "1.3.0"
 
 # Observation schema versions this engine knows how to interpret. Stage 0 fails
 # closed on anything else, so an observation produced by a newer/older schema is
@@ -155,7 +155,6 @@ def _apply_base_rules(V, obs, fired):
     exposure_rank = _EXPOSURE_ORDER.get(exposure, 0)
     setting = obs.get("setting", "indoor_other")
     pose = obs.get("pose", "neutral")
-    framing = obs.get("framing", "full_body")
     matched = []
 
     if obs.get("nudity_or_sexual_act") is True:
@@ -196,14 +195,14 @@ def _apply_base_rules(V, obs, fired):
         _merge(tt, RISK, BLOCK, "moderate exposure is restricted in some regions")
         _merge(x, RISK, RISK, "moderate exposure — adult label recommended")
 
-    if garment in _MILD_GARMENTS and (pose != "neutral"
-                                      or framing in _FRAMING_SEXUALIZED):
+    if garment in _MILD_GARMENTS and pose != "neutral":
         # Revealing casualwear (croptop/miniskirt/shorts/fitness_wear) is a
-        # demotion signal only in combination: it needs a non-neutral pose or a
-        # sexualized framing to become "suggestive". A cropped sweater in a cafe,
-        # full-body, neutral, is everyday content — the garment class alone used
-        # to flag it as RISK. Plain "mild" exposure on a normal garment likewise
-        # does not fire.
+        # demotion signal only in combination with a non-neutral pose. A cropped
+        # sweater in a cafe, neutral, is everyday content — the garment class
+        # alone used to flag it as RISK. Framing is deliberately NOT a companion
+        # here: it is the sensor's noisiest field (see _apply_modifiers) and two
+        # soft signals must not certify each other. Plain "mild" exposure on a
+        # normal garment likewise does not fire.
         matched.append("base.exposure_mild")
         _merge(ig, OK, RISK, "revealing casualwear — mild demotion possible")
         _merge(tt, OK, RISK, "revealing casualwear — mild demotion possible")
@@ -219,10 +218,25 @@ def _apply_base_rules(V, obs, fired):
 # Stage 3 — modifiers (saturating bumps, applied in listed order)
 # ---------------------------------------------------------------------------
 
+def _has_load_bearing_signal(obs):
+    """Pose and exposure are the axes the sensor reads reliably; framing and
+    garment class are amplifiers on top of them. A sexualized framing on a
+    clothed, neutral subject is the field's most common false positive (an
+    ordinary 3/4 portrait read as chest_focus), so it only counts when one of
+    these is present too.
+    """
+    return (
+        _EXPOSURE_ORDER.get(obs.get("exposure", "none"), 0) >= _EXPOSURE_ORDER["moderate"]
+        or obs.get("pose", "neutral") != "neutral"
+        or obs.get("garment") in ({"bikini"} | _MINIMAL_GARMENTS)
+        or obs.get("see_through_or_wet") is True
+    )
+
+
 def _apply_modifiers(V, obs, flags, motion, fired):
     ig, tt = V["instagram"], V["tiktok"]
 
-    if obs.get("framing") in _FRAMING_SEXUALIZED:
+    if obs.get("framing") in _FRAMING_SEXUALIZED and _has_load_bearing_signal(obs):
         fired.append("mod.framing")
         _bump_worst_capped(ig)
         _bump_worst_capped(tt)

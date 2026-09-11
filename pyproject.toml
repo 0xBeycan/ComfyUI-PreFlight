@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-preflight"
 description = "Predict how a generated image/video would be treated by Instagram, TikTok and X before publishing — a Qwen-VL observation sensor plus a deterministic rules engine that flags removal and reach-suppression risk per platform."
-version = "1.2.0"
+version = "1.1.0"
 authors = [{ name = "0xBeycan" }]
 license = { text = "MIT" }
 readme = "README.md"
