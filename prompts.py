@@ -16,7 +16,7 @@ Pure stdlib — no ComfyUI, torch, or transformers imports — so the schema and
 # PROMPT_VERSION on any change to OBSERVATION_PROMPT wording. rules.py declares
 # which SCHEMA_VERSIONs it can still interpret (rules.KNOWN_SCHEMA_VERSIONS).
 SCHEMA_VERSION = "1"
-PROMPT_VERSION = "4"
+PROMPT_VERSION = "5"
 
 # The observation engine's system prompt. Kept verbatim; the model is a pure
 # "what is visually present" sensor and never judges acceptability.
@@ -48,7 +48,7 @@ Field definitions:
 - framing: where the composition places emphasis. "face_centric" = head-and-shoulders portrait. "full_body" = an ordinary portrait or lifestyle shot where the face and most of the torso or body are visible — this is the default for everyday photos, even when the person is centered or the chest happens to sit mid-frame. "chest_focus" / "butt_focus" = the frame is deliberately composed around that body region: it fills most of the frame and the face is cropped out, cut off, or pushed to the edge, regardless of how much clothing is worn. "lowangle_body" = camera clearly below waist height angled up at the body.
 - pose: "neutral" = standing, sitting, walking, ordinary lifestyle posture. "mildly_suggestive" = arched back, hand on hip with body emphasis, over-shoulder glance. "suggestive" = poses whose primary purpose is sexual appeal — spread legs, on all fours, hands on intimate areas, bent over toward camera.
 - see_through_or_wet: true if fabric is transparent, mesh, wet-clinging, or if nipple outline is visible through clothing.
-- exposure: "none" = fully covered. "mild" = cleavage of any depth as long as the breasts themselves stay covered, bare arms, bare legs, bare midriff. "moderate" = breast or buttock skin visible beyond the garment edge — side breast, under breast, partial buttock. "significant" = underwear-only, nipple covers only, implied nudity.
+- exposure: "none" = fully covered. "mild" = bare arms, bare legs, bare midriff, and a low neckline showing the upper chest and the inner curve of the breasts — no matter how deep. "moderate" = the side of the breast, the underside of the breast, or part of the buttocks is uncovered. "significant" = underwear-only, nipple covers only, implied nudity.
 - nudity_or_sexual_act: true only for exposed genitals, exposed female nipples, exposed full buttocks, or a depicted sexual act.
 - motion_flags: only from multi-frame input; use "none" for a single image.
 - visible_text: transcribe any readable text visible in the image — watermarks, overlaid captions, usernames, URLs, stickers. Verbatim, up to ~200 characters. Use "" if there is none.

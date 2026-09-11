@@ -261,7 +261,7 @@ def test_caption_flags_precision(text, expected):
 # --- 8. X label requirement ---------------------------------------------------
 
 @pytest.mark.parametrize("kw,expected", [
-    (dict(exposure="moderate"), True),
+    (dict(exposure="moderate"), False),
     (dict(exposure="significant"), True),
     (dict(see_through_or_wet=True), True),
     (dict(garment="underwear_only"), True),
@@ -325,8 +325,19 @@ def test_framing_alone_on_clothed_neutral_subject_is_ok():
 def test_framing_counts_with_a_load_bearing_signal():
     r = rules.judge(obs(garment="regular", exposure="moderate", framing="butt_focus"))
     assert "mod.framing" in r["fired_rules"]
-    assert V(r, "instagram") == ("RISK", "RISK")
+    assert V(r, "instagram") == ("OK", "RISK")
     assert r["verdicts"]["instagram"]["worst"] != "BLOCK"
+
+
+def test_moderate_exposure_demotes_never_removes():
+    # Deep cleavage in a covered crop top lands here; it must read as "probably
+    # fine, at worst demoted" on every platform and need no X label.
+    r = rules.judge(obs(garment="croptop", exposure="moderate", pose="mildly_suggestive"))
+    assert V(r, "instagram") == ("OK", "RISK")
+    assert V(r, "tiktok") == ("OK", "RISK")
+    assert V(r, "x") == ("OK", "OK")
+    assert r["verdicts"]["x"]["label_required"] is False
+    assert r["fired_rules"] == ["base.exposure_mod", "base.exposure_mild", "mod.pose_mild"]
 
 
 def test_sexual_text_overlay_flagged_and_capped():

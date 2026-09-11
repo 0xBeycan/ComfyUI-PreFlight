@@ -20,7 +20,7 @@ uses to attribute real-world outcomes to individual rules.
 
 import re
 
-ENGINE_VERSION = "1.3.0"
+ENGINE_VERSION = "1.4.0"
 
 # Observation schema versions this engine knows how to interpret. Stage 0 fails
 # closed on anything else, so an observation produced by a newer/older schema is
@@ -190,10 +190,14 @@ def _apply_base_rules(V, obs, fired):
         _merge(x, RISK, RISK, "see-through / wet — adult label recommended")
 
     if exposure == "moderate":
+        # Soft signal. The sensor files deep cleavage under "moderate" alongside
+        # sideboob/underboob/partial buttock whatever the prompt says, and the
+        # former is ordinary feed content — so this tier can only demote, never
+        # remove, and X needs no label for it.
         matched.append("base.exposure_mod")
-        _merge(ig, RISK, RISK, "moderate exposure (sideboob/underboob/partial buttock)")
-        _merge(tt, RISK, BLOCK, "moderate exposure is restricted in some regions")
-        _merge(x, RISK, RISK, "moderate exposure — adult label recommended")
+        _merge(ig, OK, RISK, "moderate exposure — demotion possible")
+        _merge(tt, OK, RISK, "moderate exposure — demotion possible")
+        _merge(x, OK, OK)
 
     if garment in _MILD_GARMENTS and pose != "neutral":
         # Revealing casualwear (croptop/miniskirt/shorts/fitness_wear) is a
@@ -367,7 +371,7 @@ def _apply_x_label(V, obs, motion):
     exposure = obs.get("exposure", "none")
     required = (
         obs.get("nudity_or_sexual_act") is True
-        or exposure in ("moderate", "significant")
+        or exposure == "significant"
         or obs.get("see_through_or_wet") is True
         or obs.get("garment") in _MINIMAL_GARMENTS
         or obs.get("pose") == "suggestive"
@@ -400,11 +404,6 @@ def _range_drivers(obs, fired, widened_low_conf, V):
             drivers.append(
                 "TikTok: bikini reported in '%s' — verdict spans RISK (beach/pool) to "
                 "BLOCK (indoors); confirm the setting to collapse it." % setting)
-        explained.add("tiktok")
-    if "base.exposure_mod" in fired:
-        drivers.append(
-            "TikTok: moderate exposure (sideboob/underboob/partial buttock) is "
-            "region-restricted — RISK in most regions, BLOCK where enforcement is stricter.")
         explained.add("tiktok")
     if widened_low_conf:
         drivers.append(
