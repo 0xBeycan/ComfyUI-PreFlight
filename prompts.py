@@ -16,7 +16,7 @@ Pure stdlib — no ComfyUI, torch, or transformers imports — so the schema and
 # PROMPT_VERSION on any change to OBSERVATION_PROMPT wording. rules.py declares
 # which SCHEMA_VERSIONs it can still interpret (rules.KNOWN_SCHEMA_VERSIONS).
 SCHEMA_VERSION = "1"
-PROMPT_VERSION = "2"
+PROMPT_VERSION = "3"
 
 # The observation engine's system prompt. Kept verbatim; the model is a pure
 # "what is visually present" sensor and never judges acceptability.
@@ -45,7 +45,7 @@ Field definitions:
 - subject_appears_under_18: true ONLY when there are concrete visual indicators the person is a minor — child or early-adolescent facial structure and body proportions, or an unmistakable school-age context. A youthful-looking adult is NOT a minor. If the person is plausibly an adult, answer false. Do not answer true merely because the face looks young or the styling is casual.
 - garment: the most revealing garment worn. "bikini" = two-piece swimwear. "lingerie" = intimate apparel not intended as swimwear. "underwear_only" = plain underwear with no outer layer.
 - setting: the physical environment. Use "studio" only for plain/seamless backdrops with no environmental cues.
-- framing: where the composition places emphasis. "chest_focus" / "butt_focus" = the frame is composed around that body region, regardless of how much clothing is worn. "lowangle_body" = camera below waist height angled up at the body.
+- framing: where the composition places emphasis. "face_centric" = head-and-shoulders portrait. "full_body" = an ordinary portrait or lifestyle shot where the face and most of the torso or body are visible — this is the default for everyday photos, even when the person is centered or the chest happens to sit mid-frame. "chest_focus" / "butt_focus" = the frame is deliberately composed around that body region: it fills most of the frame and the face is cropped out, cut off, or pushed to the edge, regardless of how much clothing is worn. "lowangle_body" = camera clearly below waist height angled up at the body.
 - pose: "neutral" = standing, sitting, walking, ordinary lifestyle posture. "mildly_suggestive" = arched back, hand on hip with body emphasis, over-shoulder glance. "suggestive" = poses whose primary purpose is sexual appeal — spread legs, on all fours, hands on intimate areas, bent over toward camera.
 - see_through_or_wet: true if fabric is transparent, mesh, wet-clinging, or if nipple outline is visible through clothing.
 - exposure: "none" = fully covered. "mild" = ordinary cleavage, bare arms, bare legs, midriff. "moderate" = deep cleavage, side breast, under breast, partial buttock. "significant" = underwear-only, nipple covers only, implied nudity.

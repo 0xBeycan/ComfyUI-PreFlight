@@ -214,7 +214,7 @@ def test_twerk_motion_floors_but_is_not_hard():
     assert V(r, "tiktok") == ("BLOCK", "BLOCK")
     assert V(r, "x") == ("RISK", "RISK")
     assert r["verdicts"]["instagram"]["hard"] is False       # modifier, not a hard rule
-    assert r["fired_rules"] == ["base.exposure_mild", "mod.motion_twerk"]
+    assert r["fired_rules"] == ["base.default", "mod.motion_twerk"]
 
 
 def test_motion_flag_ignored_for_single_image():
@@ -222,7 +222,7 @@ def test_motion_flag_ignored_for_single_image():
     r = rules.judge(obs(garment="shorts", motion_flags="twerk_grind_striptease"),
                     is_video=False)
     assert "mod.motion_twerk" not in r["fired_rules"]
-    assert r["fired_rules"] == ["base.exposure_mild"]
+    assert r["fired_rules"] == ["base.default"]
 
 
 def test_fired_rules_full_order():
@@ -284,11 +284,20 @@ def test_mild_exposure_on_ordinary_garment_is_ok():
     assert r["fired_rules"] == ["base.default"]
 
 
-def test_revealing_casualwear_is_risk_not_removal():
+def test_revealing_casualwear_alone_is_ordinary_content():
+    # A cropped sweater, full-body, neutral pose, in a cafe: the garment class on
+    # its own is not a demotion signal (the false positive from the field).
     r = rules.judge(obs(garment="croptop", exposure="mild"))
+    for p in rules.PLATFORMS:
+        assert V(r, p) == ("OK", "OK")
+    assert r["fired_rules"] == ["base.default"]
+
+
+def test_revealing_casualwear_with_pose_is_risk_not_removal():
+    r = rules.judge(obs(garment="croptop", exposure="mild", pose="mildly_suggestive"))
     assert V(r, "instagram") == ("OK", "RISK")
     assert V(r, "tiktok") == ("OK", "RISK")
-    assert r["fired_rules"] == ["base.exposure_mild"]
+    assert r["fired_rules"] == ["base.exposure_mild", "mod.pose_mild"]
 
 
 def test_soft_modifiers_never_reach_block():
@@ -317,7 +326,7 @@ def test_sexual_text_overlay_flagged_and_capped():
 
 def test_every_spread_has_a_range_driver():
     # A best!=worst verdict must never be left unexplained.
-    r = rules.judge(obs(garment="croptop", exposure="mild"))
+    r = rules.judge(obs(garment="croptop", exposure="mild", framing="chest_focus"))
     assert V(r, "instagram") == ("OK", "RISK")
     assert r["range_drivers"], "OK/RISK spread must carry a range_driver"
 

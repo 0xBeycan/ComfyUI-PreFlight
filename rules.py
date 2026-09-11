@@ -20,7 +20,7 @@ uses to attribute real-world outcomes to individual rules.
 
 import re
 
-ENGINE_VERSION = "1.1.0"
+ENGINE_VERSION = "1.2.0"
 
 # Observation schema versions this engine knows how to interpret. Stage 0 fails
 # closed on anything else, so an observation produced by a newer/older schema is
@@ -154,6 +154,8 @@ def _apply_base_rules(V, obs, fired):
     exposure = obs.get("exposure", "none")
     exposure_rank = _EXPOSURE_ORDER.get(exposure, 0)
     setting = obs.get("setting", "indoor_other")
+    pose = obs.get("pose", "neutral")
+    framing = obs.get("framing", "full_body")
     matched = []
 
     if obs.get("nudity_or_sexual_act") is True:
@@ -194,11 +196,14 @@ def _apply_base_rules(V, obs, fired):
         _merge(tt, RISK, BLOCK, "moderate exposure is restricted in some regions")
         _merge(x, RISK, RISK, "moderate exposure — adult label recommended")
 
-    if garment in _MILD_GARMENTS:
-        # Only *revealing casualwear* (croptop/miniskirt/shorts/fitness_wear) is a
-        # demotion signal. Plain "mild" exposure (bare arms/legs, ordinary
-        # cleavage) on a normal garment is not risky and no longer fires here —
-        # that used to flag every everyday photo as RISK.
+    if garment in _MILD_GARMENTS and (pose != "neutral"
+                                      or framing in _FRAMING_SEXUALIZED):
+        # Revealing casualwear (croptop/miniskirt/shorts/fitness_wear) is a
+        # demotion signal only in combination: it needs a non-neutral pose or a
+        # sexualized framing to become "suggestive". A cropped sweater in a cafe,
+        # full-body, neutral, is everyday content — the garment class alone used
+        # to flag it as RISK. Plain "mild" exposure on a normal garment likewise
+        # does not fire.
         matched.append("base.exposure_mild")
         _merge(ig, OK, RISK, "revealing casualwear — mild demotion possible")
         _merge(tt, OK, RISK, "revealing casualwear — mild demotion possible")
