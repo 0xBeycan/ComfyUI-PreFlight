@@ -1,5 +1,22 @@
 # ComfyUI-PreFlight
 
+> [!IMPORTANT]
+> **This repository is no longer maintained.** These nodes have been ported to
+> **[ComfyUI-BCNodes](https://github.com/0xBeycan/ComfyUI-BCNodes)** and all further
+> development happens there. Install that pack instead of this one.
+>
+> | Node here | Node in BCNodes |
+> | --- | --- |
+> | `PreFlightObserve` | `BC_PreFlightObserve` |
+> | `PreFlightReport` | `BC_PreFlightReport` |
+> | `PreFlightOutcome` | `BC_PreFlightOutcome` |
+> | `calibrate.py` (script) | `BC_PreFlightCalibrate` (node) |
+>
+> The registration keys change, so a workflow saved against this pack has to be
+> re-wired to the `BC_` nodes once. In BCNodes, Observe runs Qwen3.5-9B INT8 ConvRot
+> and the feedback store lives in `<ComfyUI user dir>/BCNodes/preflight/feedback.jsonl`.
+> Everything below is kept for reference only; no fixes or new features will land here.
+
 Predict how a generated image or video would be treated by **Instagram, TikTok and X — before you publish it.** PreFlight flags two distinct risks per platform:
 
 - **Hard limit** — removal (violates community standards).
